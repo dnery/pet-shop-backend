@@ -1,0 +1,23 @@
+{
+    "name": "pet-shop-connector",
+    "version": "1.0.0",
+    "description": "Back-end stack for the pet-shop-app interface",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js"
+    },
+    "author": "Danilo Nery",
+    "license": "ISC",
+    "dependencies": {
+        "bcrypt": "^3.0.0",
+        "body-parser": "^1.18.3",
+        "cfenv": "^1.1.0",
+        "cloudant": "^1.10.0-NOTICE",
+        "cors": "^2.8.4",
+        "dotenv": "^6.0.0",
+        "express": "^4.16.3",
+        "lz-string": "^1.4.4",
+        "nano": "^6.4.4",
+        "nodemon": "^1.17.5"
+    }
+}

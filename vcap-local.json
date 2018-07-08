@@ -1,0 +1,11 @@
+{
+  "services": {
+    "cloudantNoSQLDB": [{
+      "credentials": {
+        "url": "https://4e4987cb-ab00-4b17-801a-1e55b7177e19-bluemix:a7506d2bed64e00638035e1d4ec0f0a0cfcbb1825bb88c8c8ec2315dd7ff95be@4e4987cb-ab00-4b17-801a-1e55b7177e19-bluemix.cloudant.com"
+      },
+      "label": "cloudantNoSQLDB",
+      "name": "pet-shop-backend"
+    }]
+  }
+}

@@ -1,0 +1,5 @@
+---
+applications:
+- name: pet-shop-connector
+  random-route: true
+  memory: 128M
