@@ -1,32 +1,23 @@
-
 const fs = require("fs")                                // Image file conversion
 const mime = require("mime")                            // Configure image mime-types
-
 const cors = require("cors")                            // Configure cross-origin sharing
-const cfenv = require("cfenv")
+const cfenv = require("cfenv")                          // IBM Cloudant environment query tool
 const bcrypt = require("bcrypt")                        // Generate hased passwords for storage
 const express = require("express")                      // Actual node server framework
-const bodyParser = require("body-parser")               // Parsing of POST requests
-const nano = require('nano')('http://localhost:5984')   // CouchDB handler
+const bodyParser = require("body-parser")               // Parsing of HTTP requests
 
 
 /*
-    SET THE DATABASE SHAPE
+    INITIAL DATABASE SHAPE
 */
 let state = {
-
-    // TODO Not sure if this needs to be here
-    currentUserView: "home",        // Any user starts at home page
-    currentUserEmail: "none",       // No sense in tracking a visitors e-mail
-    currentUserRights: "visitor",   // Any user starts browsing as a visitor
-    currentUserLoggedIn: false,     // Any user starts as not logged in
 
     // All user credentials
     UACData: [
         // Password generated with bcrypt.hashSync("user", bcrypt.genSaltSync(12))
-        { email: "user@example.com",  rights: "customer" ,   password: "$2b$12$ddYjsOv9wcS3JmmXNAAoJe7vD7bObxxooY0.LVi/jGG.s9XnuKQVq"},
+        { name: "Cliente Exemplo", email: "user@example.com",  rights: "customer",   password: "$2b$12$ddYjsOv9wcS3JmmXNAAoJe7vD7bObxxooY0.LVi/jGG.s9XnuKQVq"},
         // Password gneerated with bcrypt.hashSync("admin", bcrypt.genSaltSync(12))
-        { email: "admin@example.com", rights: "supervisor" , password: "$2b$12$.PrrD1QFQvxDmlZnQVgYjuW6NUsB5h5elbn7u.c.vSmlFeOVc0hme"},
+        { name: "Admin Exemplo",   email: "admin@example.com", rights: "supervisor", password: "$2b$12$.PrrD1QFQvxDmlZnQVgYjuW6NUsB5h5elbn7u.c.vSmlFeOVc0hme"},
     ],
 
     // Globally available site data
@@ -49,16 +40,6 @@ let state = {
 
     // Customer specific business data
     CustomerData: [
-        {
-            // Personal data
-            name: "Administrador Exemplo",
-            email: "admin@example.com",
-
-            // Business data
-            animals: [],
-            appointments: [],
-            shoppingCart: []
-        },
         {
             // Personal data
             name: "Cliente Exemplo",
@@ -97,6 +78,16 @@ let state = {
                 { itemId: 6, itemName: "Ração", itemPrice: 10.0, itemAmount: 15 },
                 { itemId: 2, itemName: "Coleira", itemPrice: 10.0, itemAmount: 1 },
             ],
+        },
+        {
+            // Personal data
+            name: "Admin Exemplo",
+            email: "admin@example.com",
+
+            // Business data
+            animals: [],
+            appointments: [],
+            shoppingCart: []
         },
     ],
 }
@@ -138,7 +129,6 @@ for (const product of state.SiteData.products) {
     product.media = "data:" + fileMime + ";charset=utf-8;base64, " + base64_encode(fileName)
     product.localMedia = false // force image to be interpreted as data
 }
-console.log("[local: transformed product images]")
 
 // --> Encode (with schema) service images
 for (const service of state.SiteData.services) {
@@ -147,7 +137,6 @@ for (const service of state.SiteData.services) {
     service.media = "data:" + fileMime + ";charset=utf-8;base64, " + base64_encode(fileName)
     service.localMedia = false // force image to be interpreted as data
 }
-console.log("[local: transformed service images]")
 
 // --> Encode (with schema) pet images
 for (const customer of state.CustomerData) {
@@ -158,41 +147,41 @@ for (const customer of state.CustomerData) {
         animal.localMedia = false // force image to be interpreted as data
     }
 }
-console.log("[local: transformed customer pet images]")
 
 // Useful error info display routine
 const displayError = error => {
-    console.log("=================================")
-    console.log("=================================")
+    console.log("==================================================")
+    console.log("==================================================")
     console.log("[ERROR: " + error.error + ": " + error.reason + "]")
-    console.log("=================================")
-    console.log("=================================")
+    console.log("==================================================")
+    console.log("==================================================")
 }
 
 // Complete db initialization routine
 const engageDatabase = handler => {
     handler.list((err, body) => {
-        if (err) { displayError(err); return }
+        if (err) displayError(err)
 
         // Create initial database
         if (body.rows.length === 0) {
             handler.insert({ domain: state.UACData }, "uac_data", err => {
                 if (err) displayError(err)
-                console.log("[db: insert uac_data doc]")
+                console.log("[db: insert uac_data]")
             })
             handler.insert({ domain: state.SiteData.products }, "site_data_products", err => {
                 if (err) displayError(err)
-                console.log("[db: insert site_data_products doc]")
+                console.log("[db: insert site_data_products]")
             })
             handler.insert({ domain: state.SiteData.services }, "site_data_services", err => {
                 if (err) displayError(err)
-                console.log("[db: insert site_data_services doc]")
+                console.log("[db: insert site_data_services]")
             })
             for (const customer of state.CustomerData) {
                 let docName = "customer_data_" + customer.email
                 handler.insert({ domain: customer }, docName, err => {
                     if (err) displayError(err)
-                    console.log("[db: insert " + docName + " doc]")
+                    console.log("[db: insert " + docName + "]")
+                    petshopwd.dec(1)
                 })
             }
         }
@@ -203,13 +192,14 @@ const engageDatabase = handler => {
 let vcapLocal
 try {
     vcapLocal = require("./vcap-local.json")
-    console.log("[local: loaded local vcap file]")
+    console.log("[cloudant: loaded local vcap file]")
 } catch(error) {
     // Means it's running remotely
 }
 
 // --> Start: WRANGLER
 let cloudant = null
+let petshopdb = null
 const petshopenv = cfenv.getAppEnv((vcapLocal ? { vcap: vcapLocal } : {}))
 if (petshopenv.services["cloudantNoSQLDB"] || petshopenv.getService("cloudantNoSQLDB")) {
     let Cloudant = require("cloudant")
@@ -217,42 +207,25 @@ if (petshopenv.services["cloudantNoSQLDB"] || petshopenv.getService("cloudantNoS
     if (petshopenv.services["cloudantNoSQLDB"]) {
         // Load based on local vcap file
         cloudant = Cloudant(petshopenv.services["cloudantNoSQLDB"][0].credentials)
+        console.log("[cloudant: wrangler is local]")
     } else {
         // Load from environment set by cloudant
         cloudant = Cloudant(petshopenv.getService("cloudantNoSQLDB").credentials)
+        console.log("[cloudant: wrangler is remote]")
     }
-}
 
-// --> Start: DATABASE
-let petshopdb = null
-cloudant.db.get("pet-shop-database", (err, body) => {
-    if (err) { displayError(err); return }
-    petshopdb = cloudant.use("pet-shop-database")
-    engageDatabase(petshopdb)
-})
-let petshopwd = {
-    // Sets pending operations!
-    // -> Anything bigger than zero means
-    //    that the database is not ready to use
-    ops: 1,
-    ready: false,
-
-    opsListener: (value) => {},
-    set(value) {
-        this.ops = value
-        this.opsListener(value)
-    },
-    get(value) {
-        return this.ops
-    },
-    registerListener: (listener) => {
-        this.opsListener = listener
-    }
+    // Actually engage and start the database system
+    cloudant.db.create("pet-shop-database", (err, body) => {
+        if (err) {
+            console.log("[cloudant: database exists :)]")
+        } else {
+            console.log("[cloudant: database created]")
+        }
+        petshopdb = cloudant.use("pet-shop-database")
+        console.log("[cloudant: wrangler online]")
+        engageDatabase(petshopdb)
+    })
 }
-petshopwd.registerListener((value) => {
-    const dbstatus = (value === 0) ? "database is ready" : "database engaged..."
-    console.log("[database: " + dbstatus + "]")
-})
 
 
 /*
@@ -261,124 +234,346 @@ petshopwd.registerListener((value) => {
 // Configure the eserver
 const application = express()
 application.set("port", process.env.PORT || 3002)           // Set port to 3002 if PORT is undefined
-application.use(cors())                                     // Allow cross origin sharing with anyone
-//application.use(cors({ origin: "http://localhost:3000" }))  // Allow cross origin sharing with this guy
 application.use(bodyParser.urlencoded({ extended: false })) // Parse application/x-www-form-urlencoded datatypes
-application.use(bodyParser.json())                          // Parse application/json datatypes
+application.use(bodyParser.json({limit: "200kb"}))          // Parse application/json datatypes (200kb quota)
+application.use(cors())                                     // Allow cross origin sharing with anyone
 
-// ENDPOINT: test
-application.get("/secret-test-endpoint", function(req, res) {
-    res.send("<img src='" + state.SiteData.products[0].media + "' alt='product' >")
+// ENDPOINT: use root for test only
+application.get("/", (req, res) => {
+    res.send("<h1>Hi :)</h1><br><h2>Our root is only used for keep-alive messages</h2><br><h2> To use the app,\
+    please refer to our front-end hosted on <a href='https://dnery.github.io/pet-shop-app'>github</h2>")
 })
-
-//// ENDPOINT: all content
-//application.get("/default-content", (req, res) => {
-//    // Set failure behavior
-//    req.setTimeout(2500, () => {
-//        res.json({ error: "Request timed out" })
-//    })
-//
-//    // Query site data
-//    petshopdb.get("site_data", (err, body) => {
-//        if (err) {
-//            displayError(err);
-//            res.json({ error: "Failed to fetch site data" })
-//            return
-//        }
-//        let siteData = body.domain
-//
-//        // Query customer data
-//        petshopdb.get("customer_data", (err2, body2) => {
-//            if (err2) {
-//                displayError(err2);
-//                res.json({ error: "Failed to fetch customer data" })
-//                return
-//            }
-//            let customerData = body2.domain
-//
-//            // Return all fetched data
-//            res.json({ SiteData: siteData, CustomerData: customerData })
-//        })
-//    })
-//})
 
 // ENDPOINT: user sign-in & sign-up
 application.route("/UAC")
-    .post((req, res) => {
-        // OR trim received string with "<data>split(/,(.+)/)[1]"
-        const user = req.body.user
-        const pass = req.body.pass
-
-        // Set failure behavior
-        req.setTimeout(2500, () => {
-            res.json({ error: "Request timed out" })
-        })
-
-        // Do user "sign in"
-        petshopdb.get("uac_data", (err, body) => {
-            if (err) {
-                displayError(err)
-                return
-            }
-
-            for (const registry of body.domain) {
-                if (user === registry.email) {
-                    if (bcrypt.compareSync(pass, registry.password)) {
-                        res.json({ ok: true, email: registry.email, rights: registry.rights }) // SUCCESS
-                        return
-                    }
-                    res.json({ error: "Unauthorized: wrong password" })
-                    return
-                }
-            }
-            res.json({ error: "Unauthorized: user not found" })
+    .put((req, res) => { // Sign-up
+        // Set timeout behavior
+        req.setTimeout(5000, () => {
+            console.log("[local: request timeout]")
+            res.status(408).end()
             return
         })
-    })
-    .put((req, res) => {
-        // OR trim received string with "<data>split(/,(.+)/)[1]"
         const name = req.body.name
         const user = req.body.user
         const pass = req.body.pass
 
-        // Set failure behavior
-        req.setTimeout(2500, () => {
-            res.json({ error: "Request timed out" })
-        })
-
-        // Cascade: STEP 1
         petshopdb.get("uac_data", (err, body) => {
-            if (err) { displayError(err); return }
+            if (err) {
+                displayError(err);
+                res.json({ error: "Database: error getting UAC data :(" })
+                return
+            }
+            console.log("[db: query uac_data]")
+
             // Check existence
             for (const row of body.domain) {
                 if (row.email === user) {
-                    res.json({ error: "Unauthorized: user already exists" })
+                    res.json({ error: "Unauthorized: user already exists :(" })
                     return
                 }
             }
-            // Update UAC list
+
+            // Cascate: STEP 1
             let UACList = [
-                ...body.domain, 
-                { email: user, rights: "customer", password: bcrypt.hashSync(pass, bcrypt.genSaltSync(12)) }
+                ...body.domain,
+                { name: name, email: user, rights: "customer", password: bcrypt.hashSync(pass, bcrypt.genSaltSync(12)) }
             ]
-            petshopdb.insert({ _id: "uac_data", _rev: body._rev, domain: UACList }, (err2, body2) => {
-                if (err2) { displayError(err2); return }
+            petshopdb.insert({ _id: body._id, _rev: body._rev, domain: UACList }, (err2, body2) => {
+                if (err2) {
+                    displayError(err2);
+                    res.json({ error: "Database: error updating UAC data :(" })
+                    return
+                }
+                console.log("[db: update uac_data]")
 
                 // Cascade: STEP 2
                 const documentName = "customer_data_" + user
                 const documentData = { name: name, email: user, animals: [], appointments: [], shoppingCart: [] }
                 petshopdb.insert({ domain: documentData }, documentName, (err3, body3) => {
-                    if (err3) { displayError(err3); return }
+                    if (err3) {
+                        displayError(err3);
+                        res.json({error: "Database: error creating customer record :("})
+                        return
+                    }
+                    console.log("[db: insert " + documentName + "]")
+
                     // Finally respond
                     res.json({ ok: true, name: name, email: user, rights: "customer" }) // SUCCESS
+                    console.log("[db: cascade job completed]")
                 })
+            })
+        })
+    })
+    .post((req, res) => { // Sign-in
+        // Set timeout behavior
+        req.setTimeout(5000, () => {
+            console.log("[local: request timeout]")
+            res.status(408).end()
+            return
+        })
+        const user = req.body.user
+        const pass = req.body.pass
+
+        // Do user "sign in"
+        petshopdb.get("uac_data", (err, body) => {
+            if (err) {
+                displayError(err)
+                res.json({ error: "Database: error getting UAC data :(" })
+                return
+            }
+            console.log("[db: query uac_data]")
+
+            for (const registry of body.domain) {
+                if (user === registry.email) {
+                    if (bcrypt.compareSync(pass, registry.password)) {
+                        // Finally respond
+                        res.json({ ok: true, name: registry.name, email: registry.email, rights: registry.rights }) // SUCCESS
+                        return
+                    }
+                    res.json({ error: "Unauthorized: wrong password :(" })
+                    return
+                }
+            }
+            res.json({ error: "Unauthorized: user not found :(" })
+            return
+        })
+    })
+
+// ENDPOINT: retrieve products list
+application.get("/products", (req, res) => {
+    // Set timeout
+    req.setTimeout(6000, () => {
+        console.log("[local: request timeout]")
+        res.status(408).end()
+        return
+    })
+
+    // Retrieve data
+    petshopdb.get("site_data_products", (err, body) => {
+        if (err) {
+            displayError(err)
+            res.json({ error: "Database: error getting product list :(" })
+            return
+        }
+        console.log("[db: query site_data_products]")
+        res.json({ ok: true, products: body.domain }) // SUCCESS
+    })
+})
+
+// ENDPOINT: retrieve services list
+application.get("/services", (req, res) => {
+        // Set timeout
+        req.setTimeout(6000, () => {
+            console.log("[local: request timeout]")
+            res.status(408).end()
+            return
+        })
+
+        // Retrieve data
+        petshopdb.get("site_data_services", (err, body) => {
+            if (err) {
+                displayError(err)
+                res.json({error: "Database error"})
+                return
+            }
+            console.log("[db: query site_data_services]")
+            res.json({ ok: true, services: body.domain }) // SUCCESS
+        })
+})
+
+// ENDPOINT: retrieve user info list
+application.get("/userInfo", (req, res) => {
+    // Set timeout
+    req.setTimeout(5000, () => {
+        console.log("[local: request timeout]")
+        res.status(408).end()
+        return
+    })
+
+    // Retrieve data
+    petshopdb.get("uac_data", (err, body) => {
+        if (err) {
+            displayError(err)
+            res.json({ error: "Database: error getting customer record :(" })
+        }
+        console.log("[db: query uac_data]")
+        res.json({ ok: true, userInfo: body.domain })
+    })
+})
+
+// ENDPOINT: customer pet control
+application.route("/:user/pets/:petId*?")
+    .get((req, res) => { // Query
+        // Set timeout
+        req.setTimeout(8000, () => {
+            console.log("[local: request timeout]")
+            res.status(408).end()
+            return
+        })
+
+        // Retrieve data
+        const user = req.params.user
+        const docName = "customer_data_" + user
+        petshopdb.get(docName, (err, body) => {
+            if (err) {
+                displayError(err)
+                res.json({ error: "Database: error getting customer record :(" })
+                return
+            }
+            console.log("[db: query " + docName + "]")
+            res.json({ ok: true, animals: body.domain.animals }) // SUCCESS
+        })
+    })
+    .put((req, res) => { // Create
+        // Set timeout
+        req.setTimeout(8000, () => {
+            console.log("[local: request timeout]")
+            res.status(408).end()
+            return
+        })
+
+        // Parse body
+        const petName = req.body.name
+        const petRace = req.body.race
+        const petMedia = req.body.media
+        if (!petName || !petRace || !petMedia) {
+            console.log("[local: missing info]")
+            res.json({ error: "Missing information :(" })
+            return
+        }
+
+        // Cascade: STEP 1
+        const user = req.params.user
+        const docName = "customer_data_" + user
+        petshopdb.get(docName, (err, body) => {
+            if (err) {
+                displayError(err)
+                res.json({ error: "Database: error getting customer record :(" })
+                return
+            }
+            console.log("[db: query " + docName + "]")
+
+            // Cascade: STEP 2
+            const nRecords = body.domain.animals.length
+            const domain = Object.assign({}, body.domain, {
+                animals: [
+                    ...body.domain.animals,
+                    {
+                        id: (nRecords > 0) ? (body.domain.animals[nRecords - 1].id + 1) : 0,
+                        name: petName,
+                        race: petRace,
+                        media: petMedia,
+                        localMedia: false
+                    }
+                ]
+            })
+            petshopdb.insert({ _id: body._id, _rev: body._rev, domain: domain }, (err2, body2) => {
+                if (err2) {
+                    displayError(err2)
+                    res.json({ error: "Database: error updating customer record :(" })
+                    return
+                }
+                console.log("[db: update " + docName + "]")
+                res.json({ ok: true }) // SUCCESS
+                console.log("[db: cascade job completed]")
+            })
+        })
+    })
+    .post((req, res) => { // Update
+        // Set timeout
+        req.setTimeout(8000, () => {
+            console.log("[local: request timeout]")
+            res.status(408).end()
+            return
+        })
+
+        // Parse body
+        const petId = req.body.id
+        const petName = req.body.name
+        const petRace = req.body.race
+        const petMedia = req.body.media
+        if (!petId || !petName || !petRace || !petMedia) {
+            console.log("[local: missing info]")
+            res.json({ error: "Missing information :(" })
+            return
+        }
+
+        // Cascade: STEP 1
+        const user = req.params.user
+        const docName = "customer_data_" + user
+        petshopdb.get(docName, (err, body) => {
+            if (err) {
+                displayError(err)
+                res.json({ error: "Database: error getting customer record :(" })
+                return
+            }
+            console.log("[db: query " + docName + "]")
+
+            // Cascade: STEP 2
+            const domain = Object.assign({}, body.domain, {
+                animals: body.domain.animals.map(pet => {
+                    if (pet.id === petId) {
+                        return Object.assign({}, pet, {
+                            name: petName,
+                            race: petRace,
+                            media: petMedia
+                        })
+                    }
+                    return pet
+                })
+            })
+            petshopdb.insert({ _id: body._id, _rev: body._rev, domain: domain }, (err2, body2) => {
+                if (err2) {
+                    displayError(err2)
+                    res.json({ error: "Database: error updating customer record :(" })
+                    return
+                }
+                console.log("[db: update " + docName + "]")
+                res.json({ ok: true }) // SUCCESS
+                console.log("[db: cascade job completed]")
+            })
+        })
+    })
+    .delete((req, res) => { // Delete
+        // Set timeout
+        req.setTimeout(8000, () => {
+            console.log("[local: request timeout]")
+            res.status(408).end()
+            return
+        })
+
+        // Cascade: STEP 1
+        const user = req.params.user
+        const docName = "customer_data_" + user
+        petshopdb.get(docName, (err, body) => {
+            if (err) {
+                displayError(err)
+                res.json({ error: "Database: error getting customer record :(" })
+                return
+            }
+            console.log("[db: query " + docName + "]")
+
+            // Cascade: STEP 2
+            const petId = parseInt(req.params.petId, 10) // !!!
+            const domain = Object.assign({}, body.domain, {
+                animals: body.domain.animals.filter(pet => (pet.id !== petId))
+            })
+            petshopdb.insert({ _id: body._id, _rev: body._rev, domain: domain }, (err2, body2) => {
+                if (err2) {
+                    displayError(err2)
+                    res.json({ error: "Database: error updating customer record :(" })
+                    return
+                }
+                console.log("[db: update " + docName + "]")
+                res.json({ ok: true }) // SUCCESS
+                console.log("[db: cascade job completed]")
             })
         })
     })
 
 // MIDDLEWARE: resource not found (last possible match)
 application.use((req, res) => {
-    res.status(404).send("This resource does not exist :(")
+    res.status(404).send("<h2>This resource does not exist :(</h2>")
 })
 
 application.listen(application.get("port"), () => {
