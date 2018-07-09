@@ -245,7 +245,7 @@ application.get("/", (req, res) => {
 })
 
 // ENDPOINT: user sign-in & sign-up
-application.route("/UAC")
+application.route("/uac")
     .put((req, res) => { // Sign-up
         // Set timeout behavior
         req.setTimeout(5000, () => {
@@ -403,14 +403,15 @@ application.get("/userInfo", (req, res) => {
 
 // ENDPOINT: customer pet control
 application.route("/:user/pets/:petId*?")
-    .get((req, res) => { // Query
+
+     // Query
+    .get((req, res) => {
         // Set timeout
         req.setTimeout(8000, () => {
             console.log("[local: request timeout]")
             res.status(408).end()
             return
         })
-
         // Retrieve data
         const user = req.params.user
         const docName = "customer_data_" + user
@@ -424,7 +425,9 @@ application.route("/:user/pets/:petId*?")
             res.json({ ok: true, animals: body.domain.animals }) // SUCCESS
         })
     })
-    .put((req, res) => { // Create
+
+    // Create
+    .put((req, res) => {
         // Set timeout
         req.setTimeout(8000, () => {
             console.log("[local: request timeout]")
@@ -479,7 +482,9 @@ application.route("/:user/pets/:petId*?")
             })
         })
     })
-    .post((req, res) => { // Update
+
+    // Update
+    .post((req, res) => {
         // Set timeout
         req.setTimeout(8000, () => {
             console.log("[local: request timeout]")
@@ -488,11 +493,11 @@ application.route("/:user/pets/:petId*?")
         })
 
         // Parse body
-        const petId = req.body.id
+        const petId = req.body.id // Already a number !!!
         const petName = req.body.name
         const petRace = req.body.race
         const petMedia = req.body.media
-        if (!petId || !petName || !petRace || !petMedia) {
+        if ((typeof(petId) === "undefined") || !petName || !petRace || !petMedia) { // petId might be zero
             console.log("[local: missing info]")
             res.json({ error: "Missing information :(" })
             return
@@ -534,7 +539,9 @@ application.route("/:user/pets/:petId*?")
             })
         })
     })
-    .delete((req, res) => { // Delete
+
+    // Delete
+    .delete((req, res) => {
         // Set timeout
         req.setTimeout(8000, () => {
             console.log("[local: request timeout]")
@@ -554,7 +561,7 @@ application.route("/:user/pets/:petId*?")
             console.log("[db: query " + docName + "]")
 
             // Cascade: STEP 2
-            const petId = parseInt(req.params.petId, 10) // !!!
+            const petId = parseInt(req.params.petId, 10) // Not a number by default!!!
             const domain = Object.assign({}, body.domain, {
                 animals: body.domain.animals.filter(pet => (pet.id !== petId))
             })
@@ -570,6 +577,376 @@ application.route("/:user/pets/:petId*?")
             })
         })
     })
+
+// ENDPOINT: customer appointment control
+application.route("/:user/appointments/:appId*?")
+
+    // Query
+    .get((req, res) => {
+        // Set timeout
+        req.setTimeout(8000, () => {
+            console.log("[local: request timeout]")
+            res.status(408).end()
+            return
+        })
+
+        // Retrieve data
+        const user = req.params.user
+        const docName = "customer_data_" + user
+        petshopdb.get(docName, (err, body) => {
+            if (err) {
+                displayError(err)
+                res.json({ error: "Database: error getting customer record :(" })
+                return
+            }
+            console.log("[db: query " + docName + "]")
+            res.json({ ok: true, appointments: body.domain.appointments }) // SUCCESS
+        })
+    })
+
+    // Create
+    .put((req, res) => {
+        // Set timeout
+        req.setTimeout(8000, () => {
+            console.log("[local: request timeout]")
+            res.status(408).end()
+            return
+        })
+
+        // Parse body
+        const serviceId = req.body.serviceId; const serviceName = req.body.serviceName
+        const animalId = req.body.animalId; const animalName = req.body.animalName
+        const appDate = req.body.date; const appStatus = req.body.status
+        const appMessage = req.body.message
+        if ((typeof(serviceId) === "undefined") || (typeof(animalId) === "undefined") ||
+            !serviceName || !animalName || !appDate) {
+            console.log("[local: missing info]")
+            res.json({ error: "Missing information :(" })
+            return
+        }
+
+        // Cascade: STEP 1
+        const user = req.params.user
+        const docName = "customer_data_" + user
+        petshopdb.get(docName, (err, body) => {
+            if (err) {
+                displayError(err)
+                res.json({ error: "Database: error getting customer record :(" })
+                return
+            }
+            console.log("[db: query " + docName + "]")
+
+            // Cascade: STEP 2
+            const nRecords = body.domain.appointments.length
+            const domain = Object.assign({}, body.domain, {
+                appointments: [
+                    ...body.domain.appointments,
+                    {
+                        id: (nRecords > 0) ? (body.domain.appointments[nRecords - 1].id + 1) : 0,
+                        serviceId: serviceId, serviceName: serviceName,
+                        animalId: animalId, animalName: animalName,
+                        date: appDate,
+                        status: appStatus,
+                        message: appMessage
+                    }
+                ]
+            })
+            petshopdb.insert({ _id: body._id, _rev: body._rev, domain: domain }, (err2, body2) => {
+                if (err2) {
+                    displayError(err2)
+                    res.json({ error: "Database: error updating customer record :(" })
+                    return
+                }
+                console.log("[db: update " + docName + "]")
+                res.json({ ok: true }) // SUCCESS
+                console.log("[db: cascade job completed]")
+            })
+        })
+    })
+
+    // Update
+    .post((req, res) => {
+        // Set timeout
+        req.setTimeout(8000, () => {
+            console.log("[local: request timeout]")
+            res.status(408).end()
+            return
+        })
+
+        // Parse body
+        const serviceId = req.body.serviceId; const serviceName = req.body.serviceName
+        const animalId = req.body.animalId; const animalName = req.body.animalName
+        const appDate = req.body.date; const appStatus = req.body.status
+        const appMessage = req.body.message; const appId = req.body.id
+        if ((typeof (serviceId) === "undefined") ||
+            (typeof (animalId) === "undefined") ||
+            (typeof (appId) === "undefined") ||
+            !serviceName || !animalName || !appDate) {
+            console.log("[local: missing info]")
+            res.json({ error: "Missing information :(" })
+            return
+        }
+
+        // Cascade: STEP 1
+        const user = req.params.user
+        const docName = "customer_data_" + user
+        petshopdb.get(docName, (err, body) => {
+            if (err) {
+                displayError(err)
+                res.json({ error: "Database: error getting customer record :(" })
+                return
+            }
+            console.log("[db: query " + docName + "]")
+
+            // Cascade: STEP 2
+            const domain = Object.assign({}, body.domain, {
+                appointments: body.domain.appointments.map(app => {
+                    if (app.id === appId) {
+                        return Object.assign({}, app, {
+                            serviceId: serviceId, serviceName: serviceName,
+                            animalId: animalId, animalName: animalName,
+                            id: appId,
+                            date: appDate,
+                            status: appStatus,
+                            message: appMessage
+                        })
+                    }
+                    return app
+                })
+            })
+            petshopdb.insert({ _id: body._id, _rev: body._rev, domain: domain }, (err2, body2) => {
+                if (err2) {
+                    displayError(err2)
+                    res.json({ error: "Database: error updating customer record :(" })
+                    return
+                }
+                console.log("[db: update " + docName + "]")
+                res.json({ ok: true }) // SUCCESS
+                console.log("[db: cascade job completed]")
+            })
+        })
+    })
+
+    // Delete
+    .delete((req, res) => {
+        // Set timeout
+        req.setTimeout(8000, () => {
+            console.log("[local: request timeout]")
+            res.status(408).end()
+            return
+        })
+
+        // Cascade: STEP 1
+        const user = req.params.user
+        const docName = "customer_data_" + user
+        petshopdb.get(docName, (err, body) => {
+            if (err) {
+                displayError(err)
+                res.json({ error: "Database: error getting customer record :(" })
+                return
+            }
+            console.log("[db: query " + docName + "]")
+
+            // Cascade: STEP 2
+            const appId = parseInt(req.params.appId, 10) // Not a number by default!!!
+            const domain = Object.assign({}, body.domain, {
+                appointments: body.domain.appointments.filter(app => (app.id !== appId))
+            })
+            petshopdb.insert({ _id: body._id, _rev: body._rev, domain: domain }, (err2, body2) => {
+                if (err2) {
+                    displayError(err2)
+                    res.json({ error: "Database: error updating customer record :(" })
+                    return
+                }
+                console.log("[db: update " + docName + "]")
+                res.json({ ok: true }) // SUCCESS
+                console.log("[db: cascade job completed]")
+            })
+        })
+    })
+
+
+// ENDPOINT: customer shopping cart control
+application.route("/:user/shoppingCart/:itemId*?")
+
+    // Query
+    .get((req, res) => {
+        // Set timeout
+        req.setTimeout(8000, () => {
+            console.log("[local: request timeout]")
+            res.status(408).end()
+            return
+        })
+
+        // Retrieve data
+        const user = req.params.user
+        const docName = "customer_data_" + user
+        petshopdb.get(docName, (err, body) => {
+            if (err) {
+                displayError(err)
+                res.json({ error: "Database: error getting customer record :(" })
+                return
+            }
+            console.log("[db: query " + docName + "]")
+            res.json({ ok: true, shoppingCart: body.domain.shoppingCart }) // SUCCESS
+        })
+    })
+
+    // Create
+    .post((req, res) => {
+        // Set timeout
+        req.setTimeout(12000, () => {
+            console.log("[local: request timeout]")
+            res.status(408).end()
+            return
+        })
+
+        // Parse body
+        //{ itemId: 2, itemName: "Coleira", itemPrice: 10.0, itemAmount: 1 },
+        const itemId = req.body.itemId
+        const itemName = req.body.itemName
+        const itemPrice = req.body.itemPrice
+        const itemAmount = req.body.itemAmount
+        if ((typeof(itemId) === "undefined")
+            (typeof(itemName) === "undefined") ||
+            (typeof(itemPrice) === "undefined") ||
+            (typeof(itemAmount) === "undefined")) {
+            console.log("[local: missing info]")
+            res.json({ error: "Missing information :(" })
+            return
+        }
+
+        // Cascade: STEP 1
+        petshopdb.get("ste_data_products", (err, body) => {
+            if (err) {
+                displayError(err)
+                res.json({ error: "Database: error getting customer record :(" })
+                return
+            }
+            console.log("[db: query site_data_products]")
+
+            // Check op validity
+            const targetProduct = body.domain.find(item => (item.id === itemId))
+            if (typeof(targetProduct) === "undefined") {
+                console.log("[db: query attempt for unavailable record]")
+                res.json({ error: "Product no longer exists 8O" })
+                return
+            }
+            if (targetProduct.amount < itemAmount) {
+                console.log("[db: attempted registering negative value]")
+                res.json({ error: "Amount requested unavailable" })
+                return
+            }
+
+            // Cascade: STEP 2
+            const domainWithNewProduct = body.domain.map(item => {
+                if (item.id === itemId) {
+                    return Object.assign({}, item, {
+                        amount: (item.amount - itemAmount)
+                    })
+                }
+                return item
+            })
+            petshopdb.insert({ _id: body._ud, _rev: body._rev, domain: domainWithNewProduct }, (err2, body2) => {
+                if (err2) {
+                    displayError(err2)
+                    res.json({ error: "Database: error updating site data :(" })
+                    return
+                }
+
+                // Cascade: STEP 3
+                const user = req.params.user
+                const docName = "customer_data_" + user
+                petshopdb.get(docName, (err3, body3) => {
+                    if (err3) {
+                        displayError(err3)
+                        res.json({ error: "Database: error getting customer record :(" })
+                        return
+                    }
+                    console.log("[db: query " + docName + "]")
+
+                    // properly insert item in cart
+                    let domainWithNewShoppingCart = null
+                    let targetCartItem = body3.domain.shoppingCart.find(item => (item.itemId === itemId))
+                    if (typeof(targetCartItem) === "undefined") {
+                        domainWithNewShoppingCart = Object.assign({}, body3.domain, {
+                            shoppingCart: [
+                                ...body3.domain.shoppingCart,
+                                {
+                                    itemId: itemId,
+                                    itemName: itemName,
+                                    itemPrice: itemPrice,
+                                    itemAmount: itemAmount
+                                }
+                            ]
+                        })
+                    } else {
+                        domainWithNewShoppingCart = Object.assign({}, body3.domain, {
+                            shoppingCart: body3.domain.shoppingCart.map(item => {
+                                if (item.id === itemId) {
+                                    return Object.assign({}, item, {
+                                        itemAmount: (item.itemAmount + itemAmount)
+                                    })
+                                }
+                                return item
+                            })
+                        })
+                    }
+
+                    // Cascade: STEP 4
+                    petshopdb.insert({ _id: body3._id, _rev: body3._rev, domain: domainWithNewShoppingCart }, (err4, body4) => {
+                        if (err4) {
+                            displayError(err4)
+                            res.json({ error: "Database: error updating customer record :(" })
+                            return
+                        }
+                        console.log("[db: update " + docName + "]")
+                        res.json({ ok: true }) // SUCCESS
+                        console.log("[db: cascade job completed]")
+                    })
+                })
+            })
+        })
+    })
+
+    // Delete
+    .delete((req, res) => {
+        // Set timeout
+        req.setTimeout(8000, () => {
+            console.log("[local: request timeout]")
+            res.status(408).end()
+            return
+        })
+
+        // Cascade: STEP 1
+        const user = req.params.user
+        const docName = "customer_data_" + user
+        petshopdb.get(docName, (err, body) => {
+            if (err) {
+                displayError(err)
+                res.json({ error: "Database: error getting customer record :(" })
+                return
+            }
+            console.log("[db: query " + docName + "]")
+
+            // Cascade: STEP 2
+            const itemId = parseInt(req.params.itemId, 10) // Not a number by default!!!
+            const domain = Object.assign({}, body.domain, {
+                shoppingCart: body.domain.shoppingCart.filter(item => (item.itemId !== itemId))
+            })
+            petshopdb.insert({ _id: body._id, _rev: body._rev, domain: domain }, (err2, body2) => {
+                if (err2) {
+                    displayError(err2)
+                    res.json({ error: "Database: error updating customer record :(" })
+                    return
+                }
+                console.log("[db: update " + docName + "]")
+                res.json({ ok: true }) // SUCCESS
+                console.log("[db: cascade job completed]")
+            })
+        })
+    })
+
 
 // MIDDLEWARE: resource not found (last possible match)
 application.use((req, res) => {
