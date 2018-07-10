@@ -44,19 +44,15 @@ Lembrando que estamos utilizando a versão Lite, então está setado para expira
 
 Tivemos muitas dificuldades durante essa última etapa. O backend do sistema foi, sem dúvidas, a parte mais
 desafiadora do projeto. Todos os integrantes estavam aprendendo desenvolvimento web pela primeira vez, então
-cada etapa, tentando amarrar os códigos de servidor com as funcionalidades do cliente, foi bem longa.
+cada etapa, tentando amarrar os códigos de servidor com as funcionalidades do cliente, foi bem longa. 
 
-Somado a esse desafio foi o fim de semestre: quase todas as provas e entregas de outros trabalhos, 
-também enormes, de outras disciplinas, como Bases de Dados e Inteligência Artificial, nos deixou com o tempo super corrido para amarrar todas as funcionalidades de administração com o front-end. 
+A parte mais difícil foi entender como amarrar os dados que recebemos do backend com o frontend, no ambiente flux-storage. Para manter o princípio de fluxo unidirecional de dados, fica difícil identificar o lugar certo de onde a request deve ser feita. 
+
+Não é uma tarefa fácil fazer as requests sem violar as guidelines do Redux, mas no nosso projeto funcionou porque conseguimos fazer a arquitetura do front-end de uma forma bem organizada e seguindo os padrões sugeridos para React/Redux.
+
+Somado a esses desafios foi o fim de semestre: quase todas as provas e entregas de outros trabalhos, 
+também enormes, de outras disciplinas, como Bases de Dados e Inteligência Artificial, nos deixou com o tempo super corrido para amarrar todas as funcionalidades de administração com o front-end.
 
 Apesar desse pedaço faltando do sistema, sentimos que conseguimos implementar bastante do que foi pedido para a parte 3, dado o grande escopo do projeto e as novas tecnologias que tivemos que aprender, como fazer as conexões ao CouchDB, fazer o front-end utilizar esses dados do lado do servidor, deploy em um sistema de nuvem, etc. 
 
 Ao final do projeto, aprendemos a levantar uma aplicação web do zero, utilizando tecnologias modernas e que estão em alta no mercado. 
-
-
-
-
-
-
-
-
