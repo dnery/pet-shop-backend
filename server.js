@@ -74,7 +74,6 @@ let state = {
                  */
             ],
             shoppingCart: [
-                { itemId: 1, itemName: "Bola de Tênis", itemPrice: 10.0, itemAmount: 3 },
                 { itemId: 6, itemName: "Ração", itemPrice: 10.0, itemAmount: 15 },
                 { itemId: 2, itemName: "Coleira", itemPrice: 10.0, itemAmount: 1 },
             ],
@@ -181,7 +180,6 @@ const engageDatabase = handler => {
                 handler.insert({ domain: customer }, docName, err => {
                     if (err) displayError(err)
                     console.log("[db: insert " + docName + "]")
-                    petshopwd.dec(1)
                 })
             }
         }
@@ -792,7 +790,7 @@ application.route("/:user/shoppingCart/:itemId*?")
         })
     })
 
-    // Create
+    // Create+Update
     .post((req, res) => {
         // Set timeout
         req.setTimeout(12000, () => {
@@ -802,25 +800,24 @@ application.route("/:user/shoppingCart/:itemId*?")
         })
 
         // Parse body
-        //{ itemId: 2, itemName: "Coleira", itemPrice: 10.0, itemAmount: 1 },
         const itemId = req.body.itemId
         const itemName = req.body.itemName
         const itemPrice = req.body.itemPrice
         const itemAmount = req.body.itemAmount
-        if ((typeof(itemId) === "undefined")
-            (typeof(itemName) === "undefined") ||
-            (typeof(itemPrice) === "undefined") ||
-            (typeof(itemAmount) === "undefined")) {
+        if ((typeof (itemId) === "undefined") ||
+            (typeof (itemName) === "undefined") ||
+            (typeof (itemPrice) === "undefined") ||
+            (typeof (itemAmount) === "undefined")) {
             console.log("[local: missing info]")
             res.json({ error: "Missing information :(" })
             return
         }
 
         // Cascade: STEP 1
-        petshopdb.get("ste_data_products", (err, body) => {
+        petshopdb.get("site_data_products", (err, body) => {
             if (err) {
                 displayError(err)
-                res.json({ error: "Database: error getting customer record :(" })
+                res.json({ error: "Database: error getting site products :(" })
                 return
             }
             console.log("[db: query site_data_products]")
@@ -847,10 +844,10 @@ application.route("/:user/shoppingCart/:itemId*?")
                 }
                 return item
             })
-            petshopdb.insert({ _id: body._ud, _rev: body._rev, domain: domainWithNewProduct }, (err2, body2) => {
+            petshopdb.insert({ _id: body._id, _rev: body._rev, domain: domainWithNewProduct }, (err2, body2) => {
                 if (err2) {
                     displayError(err2)
-                    res.json({ error: "Database: error updating site data :(" })
+                    res.json({ error: "Database: error updating site products :(" })
                     return
                 }
 
@@ -883,7 +880,7 @@ application.route("/:user/shoppingCart/:itemId*?")
                     } else {
                         domainWithNewShoppingCart = Object.assign({}, body3.domain, {
                             shoppingCart: body3.domain.shoppingCart.map(item => {
-                                if (item.id === itemId) {
+                                if (item.itemId === itemId) {
                                     return Object.assign({}, item, {
                                         itemAmount: (item.itemAmount + itemAmount)
                                     })
@@ -912,7 +909,7 @@ application.route("/:user/shoppingCart/:itemId*?")
     // Delete
     .delete((req, res) => {
         // Set timeout
-        req.setTimeout(8000, () => {
+        req.setTimeout(12000, () => {
             console.log("[local: request timeout]")
             res.status(408).end()
             return
@@ -931,10 +928,81 @@ application.route("/:user/shoppingCart/:itemId*?")
 
             // Cascade: STEP 2
             const itemId = parseInt(req.params.itemId, 10) // Not a number by default!!!
-            const domain = Object.assign({}, body.domain, {
+            const domainWithNewShoppingCart = Object.assign({}, body.domain, {
                 shoppingCart: body.domain.shoppingCart.filter(item => (item.itemId !== itemId))
             })
-            petshopdb.insert({ _id: body._id, _rev: body._rev, domain: domain }, (err2, body2) => {
+            petshopdb.insert({ _id: body._id, _rev: body._rev, domain: domainWithNewShoppingCart }, (err2, body2) => {
+                if (err2) {
+                    displayError(err2)
+                    res.json({ error: "Database: error updating customer record :(" })
+                    return
+                }
+                console.log("[db: update " + docName + "]")
+
+                // Cascade: STEP 3
+                petshopdb.get("site_data_products", (err3, body3) => {
+                    if (err3) {
+                        displayError(err3)
+                        res.json({ error: "Database: error getting site products :(" })
+                        return
+                    }
+                    console.log("[db: query site_data_products]")
+
+                    // Cascade: STEP 4
+                    let domainWithNewProduct = null
+                    let targetCartItem = body.domain.shoppingCart.find(item => item.itemId === itemId)
+                    if (typeof (targetCartItem) !== "undefined") {
+                        domainWithNewProduct = body3.domain.map(item => {
+                            if (item.id === itemId) {
+                                return Object.assign({}, item, {
+                                    amount: (item.amount + targetCartItem.itemAmount)
+                                })
+                            }
+                            return item
+                        })
+                    } else {
+                        domainWithNewProduct = body3.domain
+                    }
+                    petshopdb.insert({ _id: body3._id, _rev: body3._rev, domain: domainWithNewProduct }, (err4, body4) => {
+                        if (err4) {
+                            displayError(err4)
+                            res.json({ error: "Database: error updating site products:(" })
+                            return
+                        }
+                        console.log("[db: update site_data_products]")
+                        res.json({ ok: true }) // SUCCESS
+                        console.log("[db: cascade job completed]")
+                    })
+                })
+            })
+        })
+    })
+
+// ENDPOINT: user commits purchase (also cart control)
+application.post("/:user/confirmPurchase", (req, res) => {
+        // Set timeout
+        req.setTimeout(8000, () => {
+            console.log("[local: request timeout]")
+            res.status(408).end()
+            return
+        })
+
+        // Cascade: STEP 1
+        const user = req.params.user
+        const docName = "customer_data_" + user
+        petshopdb.get(docName, (err, body) => {
+            if (err) {
+                displayError(err)
+                res.json({ error: "Database: error getting customer record :(" })
+                return
+            }
+            console.log("[db: query " + docName + "]")
+
+            // Cascate: STEP 2
+            const domainWithClearedShoppingCart = Object.assign({}, body.domain, {
+                shoppingCart: []
+            })
+            petshopdb.insert({ _id: body._id, _rev: body._rev, domain: domainWithClearedShoppingCart }, (err2, body2) => {
                 if (err2) {
                     displayError(err2)
                     res.json({ error: "Database: error updating customer record :(" })
@@ -945,7 +1013,7 @@ application.route("/:user/shoppingCart/:itemId*?")
                 console.log("[db: cascade job completed]")
             })
         })
-    })
+})
 
 
 // MIDDLEWARE: resource not found (last possible match)
